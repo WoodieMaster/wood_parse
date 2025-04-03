@@ -1,28 +1,31 @@
 use rs_parse_lib::{
-    lexer::{DefaultLexer, LexerConsumer},
+    text_parser::{DeferedTextParserTrait, TextParser},
+    text_parser_utils::LexerUtils,
     util::LexerResult,
 };
 
 fn main() {
-    let args = std::env::args().nth(1).expect("Pass one argument");
+    let input = "a   b   c";
+    let expected = "abc";
 
-    let mut lexer = DefaultLexer::new(args.as_bytes());
+    let mut lexer = TextParser::new(input.as_bytes());
+    let mut consumer = lexer.consumer();
 
-    for _ in 0..3 {
-        let mut consumer = lexer.consumer();
+    let mut parsed_string = String::new();
 
-        loop {
-            let (result, _) = consumer.next();
-            match result {
-                LexerResult::Ok(ch) => print!("{ch}"),
-                LexerResult::Err(err) => {
-                    println!("\n\nError: {err:?}");
-                    break;
-                }
-                LexerResult::End => break,
-            }
+    loop {
+        // skip whitespace
+        let _ = consumer.consume_while(|ch: char| ch.is_whitespace());
+
+        let (result, _) = consumer.next();
+        match result {
+            LexerResult::Ok(ch) => parsed_string.push(ch),
+            LexerResult::End => break,
+            _ => {}
         }
-        consumer.apply();
-        println!();
     }
+    assert!(
+        parsed_string == expected,
+        "Expected {expected}, got {parsed_string}"
+    );
 }

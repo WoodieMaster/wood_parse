@@ -4,7 +4,7 @@ use crate::{char_parsing::read_char, util::LexerResult};
 
 pub type Pos = usize;
 
-pub trait Lexer {
+pub trait TextParserTrait {
     /// Get the current character position of the lexer
     fn current_pos(&self) -> usize;
     /// Get the character at the given offset from the current position
@@ -12,16 +12,17 @@ pub trait Lexer {
     /// Consume the given number of characters
     fn consume(&mut self, count: usize);
     /// Create a consumer that uses the current lexer
-    fn consumer(&mut self) -> impl LexerConsumer;
+    fn consumer(&mut self) -> impl DeferedTextParserTrait;
 }
 
-pub trait LexerConsumer: Lexer {
+pub trait DeferedTextParserTrait: TextParserTrait {
     fn next(&mut self) -> (LexerResult, Pos);
-    fn apply(&mut self);
+    fn reverse(&mut self, amount: usize);
+    fn apply(self);
 }
 
 #[derive(Debug)]
-pub struct DefaultLexer<R: Read> {
+pub struct TextParser<R: Read> {
     /// The position of the buffer
     read_pos: usize,
     /// The buffer containing all available characters
@@ -32,7 +33,7 @@ pub struct DefaultLexer<R: Read> {
     errored: bool,
 }
 
-impl<R: Read> DefaultLexer<R> {
+impl<R: Read> TextParser<R> {
     /// Creates a new lexer
     pub fn new(reader: R) -> Self {
         Self {
@@ -44,12 +45,12 @@ impl<R: Read> DefaultLexer<R> {
     }
 
     /// Returns a `LexerConsumer` used for parsing ahead without affecting the lexer
-    pub fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
-        DefaultLexerConsumer::new(self)
+    pub fn consumer(&mut self) -> Peeker<Self> {
+        Peeker::new(self)
     }
 }
 
-impl<R: Read> Lexer for DefaultLexer<R> {
+impl<R: Read> TextParserTrait for TextParser<R> {
     fn current_pos(&self) -> usize {
         self.read_pos - 1
     }
@@ -86,23 +87,23 @@ impl<R: Read> Lexer for DefaultLexer<R> {
     }
 
     #[allow(refining_impl_trait)]
-    fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
-        DefaultLexerConsumer::new(self)
+    fn consumer(&mut self) -> Peeker<Self> {
+        Peeker::new(self)
     }
 }
 
-pub struct DefaultLexerConsumer<'a, L: Lexer> {
+pub struct Peeker<'a, L: TextParserTrait> {
     lexer: &'a mut L,
     idx: usize,
 }
 
-impl<'a, L: Lexer> DefaultLexerConsumer<'a, L> {
+impl<'a, L: TextParserTrait> Peeker<'a, L> {
     pub fn new(lexer: &'a mut L) -> Self {
         Self { lexer, idx: 0 }
     }
 }
 
-impl<'a, L: Lexer> Lexer for DefaultLexerConsumer<'a, L> {
+impl<'a, L: TextParserTrait> TextParserTrait for Peeker<'a, L> {
     fn current_pos(&self) -> usize {
         self.lexer.current_pos() + self.idx
     }
@@ -116,20 +117,24 @@ impl<'a, L: Lexer> Lexer for DefaultLexerConsumer<'a, L> {
     }
 
     #[allow(refining_impl_trait)]
-    fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
-        DefaultLexerConsumer::new(self)
+    fn consumer(&mut self) -> Peeker<Self> {
+        Peeker::new(self)
     }
 }
 
-impl<'a, L: Lexer> LexerConsumer for DefaultLexerConsumer<'a, L> {
+impl<'a, L: TextParserTrait> DeferedTextParserTrait for Peeker<'a, L> {
     fn next(&mut self) -> (LexerResult, usize) {
         let (ch, idx) = self.lexer.get(self.idx);
         self.idx += 1;
         (ch, idx)
     }
 
-    fn apply(&mut self) {
+    fn apply(self) {
         self.lexer.consume(self.idx);
+    }
+
+    fn reverse(&mut self, amount: usize) {
+        self.idx -= amount;
     }
 }
 
@@ -139,12 +144,12 @@ mod test {
 
     #[test]
     fn create_lexer() {
-        DefaultLexer::new("Balls".as_bytes());
+        TextParser::new("Balls".as_bytes());
     }
 
     #[test]
     fn get_from_lexer() {
-        let mut lexer = DefaultLexer::new("Balls😊äüÀ".as_bytes());
+        let mut lexer = TextParser::new("Balls😊äüÀ".as_bytes());
 
         assert_eq!(lexer.get(0).0.unwrap(), 'B');
         assert_eq!(lexer.get(1).0.unwrap(), 'a');
@@ -160,7 +165,7 @@ mod test {
     #[test]
     fn read_lexer() {
         let read_string = "Balls😊äüÀ";
-        let mut lexer = DefaultLexer::new(read_string.as_bytes());
+        let mut lexer = TextParser::new(read_string.as_bytes());
         let mut consumer = lexer.consumer();
 
         let mut expected_chars = read_string.chars();

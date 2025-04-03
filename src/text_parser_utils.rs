@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{lexer::LexerConsumer, util::LexerResult};
+use crate::{text_parser::DeferedTextParserTrait, util::LexerResult};
 
 pub trait CharMatcher {
     fn match_char(&self, ch: char) -> bool;
@@ -24,16 +24,16 @@ impl<'a> CharMatcher for &'a str {
     }
 }
 
-pub trait LexerUtils: LexerConsumer {
-    fn check_next(&mut self, ch: char) -> bool;
+pub trait LexerUtils: DeferedTextParserTrait {
+    fn check_next(&mut self, ch: impl CharMatcher) -> bool;
     fn consume_if(&mut self, ch: impl CharMatcher) -> bool;
     fn read_while(&mut self, f: impl CharMatcher) -> Result<String>;
     fn consume_while(&mut self, f: impl CharMatcher) -> Result<usize>;
 }
 
-impl<T: LexerConsumer> LexerUtils for T {
-    fn check_next(&mut self, ch: char) -> bool {
-        matches!(self.consumer().next().0, LexerResult::Ok(c) if c == ch)
+impl<T: DeferedTextParserTrait> LexerUtils for T {
+    fn check_next(&mut self, cm: impl CharMatcher) -> bool {
+        matches!(self.consumer().next().0, LexerResult::Ok(c) if cm.match_char(c))
     }
 
     fn read_while(&mut self, cm: impl CharMatcher) -> Result<String> {
@@ -45,7 +45,11 @@ impl<T: LexerConsumer> LexerUtils for T {
             match result {
                 LexerResult::Ok(ch) if cm.match_char(ch) => text.push(ch),
                 LexerResult::Err(err) => return Err(err),
-                _ => return Ok(text),
+                _ => {
+                    consumer.reverse(1);
+                    consumer.apply();
+                    return Ok(text);
+                }
             }
         }
     }
@@ -60,7 +64,11 @@ impl<T: LexerConsumer> LexerUtils for T {
             match result {
                 LexerResult::Ok(ch) if cm.match_char(ch) => count += 1,
                 LexerResult::Err(err) => return Err(err),
-                _ => return Ok(count),
+                _ => {
+                    consumer.reverse(1);
+                    consumer.apply();
+                    return Ok(count);
+                }
             }
         }
     }
@@ -73,7 +81,10 @@ impl<T: LexerConsumer> LexerUtils for T {
                 consumer.apply();
                 true
             }
-            _ => false,
+            _ => {
+                consumer.reverse(1);
+                false
+            }
         }
     }
 }
