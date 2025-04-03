@@ -1,19 +1,23 @@
-use core::panic;
 use std::io::Read;
 
-use anyhow::Result;
+use crate::{char_parsing::read_char, util::LexerResult};
 
-use crate::char_parsing::read_char;
-
-pub type LexerResult = (Result<char>, usize);
+pub type Pos = usize;
 
 pub trait Lexer {
     /// Get the current character position of the lexer
     fn current_pos(&self) -> usize;
     /// Get the character at the given offset from the current position
-    fn get(&mut self, offset: usize) -> LexerResult;
+    fn get(&mut self, offset: usize) -> (LexerResult, Pos);
     /// Consume the given number of characters
     fn consume(&mut self, count: usize);
+    /// Create a consumer that uses the current lexer
+    fn consumer(&mut self) -> impl LexerConsumer;
+}
+
+pub trait LexerConsumer: Lexer {
+    fn next(&mut self) -> (LexerResult, Pos);
+    fn apply(&mut self);
 }
 
 #[derive(Debug)]
@@ -40,8 +44,8 @@ impl<R: Read> DefaultLexer<R> {
     }
 
     /// Returns a `LexerConsumer` used for parsing ahead without affecting the lexer
-    pub fn consumer(&mut self) -> LexerConsumer<Self> {
-        LexerConsumer::new(self)
+    pub fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
+        DefaultLexerConsumer::new(self)
     }
 }
 
@@ -50,17 +54,21 @@ impl<R: Read> Lexer for DefaultLexer<R> {
         self.read_pos - 1
     }
 
-    fn get(&mut self, offset: usize) -> LexerResult {
+    fn get(&mut self, offset: usize) -> (LexerResult, Pos) {
         while offset >= self.buffer.len() {
             self.buffer.push(match read_char(&mut self.reader) {
-                Ok(ok) => ok,
-                Err(err) => {
+                LexerResult::Ok(ok) => ok,
+                LexerResult::Err(err) => {
                     self.errored = true;
-                    return (Err(err), offset + self.read_pos);
+                    return (LexerResult::Err(err), offset + self.read_pos);
+                }
+                LexerResult::End => {
+                    self.errored = true;
+                    return (LexerResult::End, offset + self.read_pos);
                 }
             });
         }
-        return (Ok(self.buffer[offset]), offset + self.read_pos);
+        (LexerResult::Ok(self.buffer[offset]), offset + self.read_pos)
     }
 
     fn consume(&mut self, count: usize) {
@@ -76,51 +84,57 @@ impl<R: Read> Lexer for DefaultLexer<R> {
         }
         self.buffer.drain(0..count);
     }
+
+    #[allow(refining_impl_trait)]
+    fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
+        DefaultLexerConsumer::new(self)
+    }
 }
 
-pub struct LexerConsumer<'a, L: Lexer> {
+pub struct DefaultLexerConsumer<'a, L: Lexer> {
     lexer: &'a mut L,
     idx: usize,
 }
 
-impl<'a, L: Lexer> LexerConsumer<'a, L> {
+impl<'a, L: Lexer> DefaultLexerConsumer<'a, L> {
     pub fn new(lexer: &'a mut L) -> Self {
         Self { lexer, idx: 0 }
     }
-
-    pub fn next(&mut self) -> (Result<char>, usize) {
-        let (ch, idx) = self.lexer.get(self.idx);
-        self.idx += 1;
-        (ch, idx)
-    }
-
-    pub fn consumer(&mut self) -> LexerConsumer<Self> {
-        LexerConsumer::new(self)
-    }
-
-    pub fn apply(&mut self) {
-        self.lexer.consume(self.idx);
-    }
 }
 
-impl<'a, L: Lexer> Lexer for LexerConsumer<'a, L> {
+impl<'a, L: Lexer> Lexer for DefaultLexerConsumer<'a, L> {
     fn current_pos(&self) -> usize {
         self.lexer.current_pos() + self.idx
     }
 
-    fn get(&mut self, offset: usize) -> LexerResult {
+    fn get(&mut self, offset: usize) -> (LexerResult, usize) {
         self.lexer.get(self.idx + offset)
     }
 
     fn consume(&mut self, count: usize) {
         self.idx += count;
     }
+
+    #[allow(refining_impl_trait)]
+    fn consumer(&mut self) -> DefaultLexerConsumer<Self> {
+        DefaultLexerConsumer::new(self)
+    }
+}
+
+impl<'a, L: Lexer> LexerConsumer for DefaultLexerConsumer<'a, L> {
+    fn next(&mut self) -> (LexerResult, usize) {
+        let (ch, idx) = self.lexer.get(self.idx);
+        self.idx += 1;
+        (ch, idx)
+    }
+
+    fn apply(&mut self) {
+        self.lexer.consume(self.idx);
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::END;
-
     use super::*;
 
     #[test]
@@ -158,7 +172,7 @@ mod test {
             assert_eq!(pos, expected_pos, "Expected pos {expected_pos}, got {pos}");
 
             match result {
-                Ok(ch) => {
+                LexerResult::Ok(ch) => {
                     let expected_char = expected_chars.next().expect("Expected fewer characters");
 
                     assert_eq!(
@@ -166,10 +180,10 @@ mod test {
                         "Expected char {ch}, got {expected_char} at {pos}"
                     );
                 }
-                Err(err) => {
-                    assert!(err.is::<END>());
-                    break;
+                LexerResult::Err(err) => {
+                    panic!("Expected no error, got {err}");
                 }
+                LexerResult::End => break,
             }
 
             expected_pos += 1;

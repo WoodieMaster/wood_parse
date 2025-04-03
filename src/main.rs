@@ -1,4 +1,7 @@
-use rs_parse_lib::{lexer::DefaultLexer, END};
+use rs_parse_lib::{
+    lexer::{DefaultLexer, LexerConsumer},
+    util::LexerResult,
+};
 
 fn main() {
     let args = std::env::args().nth(1).expect("Pass one argument");
@@ -9,15 +12,14 @@ fn main() {
         let mut consumer = lexer.consumer();
 
         loop {
-            let (ch, idx) = consumer.next();
-            if let Ok(ch) = ch {
-                print!("{}", ch);
-            } else {
-                let err = ch.unwrap_err();
-                if !err.is::<END>() {
-                    println!("\n\nError at {}: {:?}", idx + 1, err);
+            let (result, _) = consumer.next();
+            match result {
+                LexerResult::Ok(ch) => print!("{ch}"),
+                LexerResult::Err(err) => {
+                    println!("\n\nError: {err:?}");
+                    break;
                 }
-                break;
+                LexerResult::End => break,
             }
         }
         consumer.apply();
