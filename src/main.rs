@@ -1,26 +1,26 @@
-use std::fs;
-
-use lexer::Lexer;
-use util::END;
-
-mod char_parsing;
-mod lexer;
-mod util;
+use rs_parse_lib::{lexer::DefaultLexer, END};
 
 fn main() {
-    let mut lexer = Lexer::new(fs::File::open("local/invalid.txt").unwrap());
+    let args = std::env::args().nth(1).expect("Pass one argument");
 
-    loop {
-        let ch = lexer.buffer_char();
+    let mut lexer = DefaultLexer::new(args.as_bytes());
 
-        if let Ok(ch) = ch {
-            print!("{}", ch);
-        } else {
-            let err = ch.unwrap_err();
-            if !err.is::<END>() {
-                println!("\n\nError: {:?}", err);
+    for _ in 0..3 {
+        let mut consumer = lexer.consumer();
+
+        loop {
+            let (ch, idx) = consumer.next();
+            if let Ok(ch) = ch {
+                print!("{}", ch);
+            } else {
+                let err = ch.unwrap_err();
+                if !err.is::<END>() {
+                    println!("\n\nError at {}: {:?}", idx + 1, err);
+                }
+                break;
             }
-            break;
         }
+        consumer.apply();
+        println!();
     }
 }
