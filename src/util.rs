@@ -12,49 +12,49 @@ macro_rules! tee {
 }
 
 #[derive(Debug)]
-pub enum LexerResult<T = char> {
+pub enum TextParserResult<T = char> {
     Ok(T),
     Err(anyhow::Error),
     End,
 }
 
-impl<V> From<Result<V>> for LexerResult<V> {
+impl<V> From<Result<V>> for TextParserResult<V> {
     fn from(value: Result<V>) -> Self {
         match value {
-            Ok(v) => LexerResult::Ok(v),
-            Err(e) => LexerResult::Err(e),
+            Ok(v) => TextParserResult::Ok(v),
+            Err(e) => TextParserResult::Err(e),
         }
     }
 }
 
-impl<T> LexerResult<T> {
+impl<T> TextParserResult<T> {
     pub fn unwrap(self) -> T {
         match self {
-            LexerResult::Ok(v) => v,
-            LexerResult::Err(e) => panic!("{}", e),
-            LexerResult::End => panic!("EOF"),
+            TextParserResult::Ok(v) => v,
+            TextParserResult::Err(e) => panic!("{}", e),
+            TextParserResult::End => panic!("EOF"),
         }
     }
 
     pub fn is_end(&self) -> bool {
-        matches!(self, LexerResult::End)
+        matches!(self, TextParserResult::End)
     }
 
     pub fn is_ok(&self) -> bool {
-        matches!(self, LexerResult::Ok(_))
+        matches!(self, TextParserResult::Ok(_))
     }
 
     pub fn is_err(&self) -> bool {
-        matches!(self, LexerResult::Err(_))
+        matches!(self, TextParserResult::Err(_))
     }
 }
 
-impl<T: Display> LexerResult<T> {
+impl<T: Display> TextParserResult<T> {
     pub fn unwrap_err(self) -> anyhow::Error {
         match self {
-            LexerResult::Ok(v) => panic!("Expected error, got {}", v),
-            LexerResult::Err(e) => e,
-            LexerResult::End => panic!("EOF"),
+            TextParserResult::Ok(v) => panic!("Expected error, got {}", v),
+            TextParserResult::Err(e) => e,
+            TextParserResult::End => panic!("EOF"),
         }
     }
 }

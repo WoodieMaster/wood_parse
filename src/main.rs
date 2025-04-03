@@ -1,29 +1,34 @@
 use rs_parse_lib::{
     text_parser::{DeferedTextParserTrait, TextParser},
-    text_parser_utils::LexerUtils,
-    util::LexerResult,
+    text_parser_utils::TextParserUtils,
+    util::TextParserResult,
 };
 
 fn main() {
     let input = "a   b   c";
     let expected = "abc";
 
-    let mut lexer = TextParser::new(input.as_bytes());
-    let mut consumer = lexer.consumer();
+    // create the parser and peeker
+    let mut parser = TextParser::new(input.as_bytes());
+    let mut peeker = parser.peeker();
 
     let mut parsed_string = String::new();
 
+    // Loop until the end is hit or an error occurs
     loop {
         // skip whitespace
-        let _ = consumer.consume_while(|ch: char| ch.is_whitespace());
+        let _ = peeker.consume_while(|ch: char| ch.is_whitespace());
 
-        let (result, _) = consumer.next();
+        // get the next character
+        let (result, _) = peeker.next();
         match result {
-            LexerResult::Ok(ch) => parsed_string.push(ch),
-            LexerResult::End => break,
+            TextParserResult::Ok(ch) => parsed_string.push(ch),
+            TextParserResult::End => break,
             _ => {}
         }
     }
+
+    //compare results
     assert!(
         parsed_string == expected,
         "Expected {expected}, got {parsed_string}"

@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{text_parser::DeferedTextParserTrait, util::LexerResult};
+use crate::{text_parser::DeferedTextParserTrait, util::TextParserResult};
 
 pub trait CharMatcher {
     fn match_char(&self, ch: char) -> bool;
@@ -24,30 +24,30 @@ impl<'a> CharMatcher for &'a str {
     }
 }
 
-pub trait LexerUtils: DeferedTextParserTrait {
+pub trait TextParserUtils: DeferedTextParserTrait {
     fn check_next(&mut self, ch: impl CharMatcher) -> bool;
     fn consume_if(&mut self, ch: impl CharMatcher) -> bool;
     fn read_while(&mut self, f: impl CharMatcher) -> Result<String>;
     fn consume_while(&mut self, f: impl CharMatcher) -> Result<usize>;
 }
 
-impl<T: DeferedTextParserTrait> LexerUtils for T {
+impl<T: DeferedTextParserTrait> TextParserUtils for T {
     fn check_next(&mut self, cm: impl CharMatcher) -> bool {
-        matches!(self.consumer().next().0, LexerResult::Ok(c) if cm.match_char(c))
+        matches!(self.peeker().next().0, TextParserResult::Ok(c) if cm.match_char(c))
     }
 
     fn read_while(&mut self, cm: impl CharMatcher) -> Result<String> {
         let mut text = String::new();
-        let mut consumer = self.consumer();
+        let mut peeker = self.peeker();
 
         loop {
-            let (result, _) = consumer.next();
+            let (result, _) = peeker.next();
             match result {
-                LexerResult::Ok(ch) if cm.match_char(ch) => text.push(ch),
-                LexerResult::Err(err) => return Err(err),
+                TextParserResult::Ok(ch) if cm.match_char(ch) => text.push(ch),
+                TextParserResult::Err(err) => return Err(err),
                 _ => {
-                    consumer.reverse(1);
-                    consumer.apply();
+                    peeker.reverse(1);
+                    peeker.apply();
                     return Ok(text);
                 }
             }
@@ -57,16 +57,16 @@ impl<T: DeferedTextParserTrait> LexerUtils for T {
     fn consume_while(&mut self, cm: impl CharMatcher) -> Result<usize> {
         let mut count: usize = 0;
 
-        let mut consumer = self.consumer();
+        let mut peeker = self.peeker();
 
         loop {
-            let (result, _) = consumer.next();
+            let (result, _) = peeker.next();
             match result {
-                LexerResult::Ok(ch) if cm.match_char(ch) => count += 1,
-                LexerResult::Err(err) => return Err(err),
+                TextParserResult::Ok(ch) if cm.match_char(ch) => count += 1,
+                TextParserResult::Err(err) => return Err(err),
                 _ => {
-                    consumer.reverse(1);
-                    consumer.apply();
+                    peeker.reverse(1);
+                    peeker.apply();
                     return Ok(count);
                 }
             }
@@ -74,15 +74,15 @@ impl<T: DeferedTextParserTrait> LexerUtils for T {
     }
 
     fn consume_if(&mut self, cm: impl CharMatcher) -> bool {
-        let mut consumer = self.consumer();
+        let mut peeker = self.peeker();
 
-        match consumer.next().0 {
-            LexerResult::Ok(c) if cm.match_char(c) => {
-                consumer.apply();
+        match peeker.next().0 {
+            TextParserResult::Ok(c) if cm.match_char(c) => {
+                peeker.apply();
                 true
             }
             _ => {
-                consumer.reverse(1);
+                peeker.reverse(1);
                 false
             }
         }
