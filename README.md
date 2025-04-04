@@ -1,16 +1,12 @@
 # Lexer Package
+This crate provides some methods for parsing text.
 
-A Rust library for building lexers.
-
-## Overview
-
-This package provides a set of tools for building lexers, including a [Lexer](cci:2://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer.rs:6:0-15:1) trait, a [DefaultLexer](cci:2://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer.rs:23:0-32:1) implementation, and various utility functions for working with lexers.
+I mostly developed it for a custom language I want to build.
 
 ## Features
-
-* **Lexer trait**: Defines the interface for a lexer, including methods for consuming input and producing tokens.
-* **DefaultLexer**: A basic implementation of the [Lexer](cci:2://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer.rs:6:0-15:1) trait that can be used as a starting point for building custom lexers.
-* **Utility functions**: Various functions for working with lexers, including [consume_while](cci:1://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer_utils.rs:52:4-65:5), [consume_if](cci:1://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer_utils.rs:67:4-77:5), and [read_while](cci:1://file:///c:/Users/table/Documents/Code/rs_parse_lib/src/lexer_utils.rs:38:4-50:5).
+This crate exposes two [main structs](./src/text_parser.rs):
+* **TextParser**: The base parser that loads the text from a `Read` trait.
+* **Peeker**: Allows you to read ahead without consuming the previous characters until you consume all read characters.
 
 ## Usage
 
@@ -19,6 +15,8 @@ To use this package, add the following to your `Cargo.toml` file:
 [dependencies]
 lexer = "0.1.0"
 ```
+
+or run `cargo add`
 
 Then, import the package in your Rust code:
 ```rust
