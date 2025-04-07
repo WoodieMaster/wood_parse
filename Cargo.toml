@@ -5,8 +5,9 @@ edition = "2021"
 license-file = "LICENSE"
 description = "A library for lexing"
 repository = "https://github.com/WoodieMaster/wood_parse"
+authors = ["WoodieMaster <tabletzuhausebeiuns@gmail.com>"]
 keywords = ["lexing"]
-categories = ["compiler"]
+categories = ["parsing"]
 exclude = [".*"]
 readme = "README.md"
 
