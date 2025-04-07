@@ -1,4 +1,4 @@
-use wood_parse::{TextParser, TextParserUtils};
+use wood_parse::{Peeker, TextParser, TextParserUtils};
 
 fn main() {
     let input = "a   b   c";
@@ -6,7 +6,7 @@ fn main() {
 
     // create the parser and peeker
     let mut parser = TextParser::new(input.as_bytes());
-    let mut peeker = parser.peeker();
+    let mut peeker: Peeker<_> = parser.peeker();
 
     let mut parsed_string = String::new();
 
