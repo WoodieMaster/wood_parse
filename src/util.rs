@@ -2,15 +2,6 @@ use std::fmt::{Debug, Display};
 
 use anyhow::Result;
 
-#[macro_export]
-macro_rules! tee {
-    ($e:expr) => {{
-        let e = $e;
-        dbg!(&e);
-        e
-    }};
-}
-
 #[derive(Debug)]
 pub enum TextParserResult<T = char> {
     Ok(T),
