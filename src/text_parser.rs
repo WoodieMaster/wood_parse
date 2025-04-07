@@ -26,10 +26,6 @@ pub trait PeekerTrait: TextParserTrait + Iterator<Item = Result<char>> {
     /// Panics if the amount is greater than the current peek position
     fn back(&mut self, amount: usize);
     /// Makes the underlying text parser, which may be another peeker, consume all the characters that this peeker peeked
-    /// # Examples
-    /// ```rust
-    /// PeekerTrait::
-    /// ```
     fn apply(self);
 }
 
