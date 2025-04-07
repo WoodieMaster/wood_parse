@@ -1,8 +1,7 @@
 [package]
-name = "rs_parse_lib"
+name = "wood_parse"
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
 license-file = "LICENSE"
 description = "A library for lexing"
 keywords = ["lexing"]

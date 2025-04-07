@@ -9,27 +9,20 @@ This crate exposes two [main structs](./src/text_parser.rs):
 * **Peeker**: Allows you to read ahead without consuming the previous characters until you consume all read characters.
 
 ## Usage
+To use this package, add the the crate to your `Cargo.toml` file or run `cargo add wood-parse`
 
-To use this package, add the following to your `Cargo.toml` file:
-```toml
-[dependencies]
-lexer = "0.1.0"
-```
-
-or run `cargo add`
-
-Then, import the package in your Rust code:
+Then, import into your Rust code:
 ```rust
-use lexer::{Lexer, DefaultLexer};
+use wood_parse::{text_parser::TextParser, util::TextParserResult};
 ```
 
 ## Example
-Here is an example of using the Default implementations to tokenize a string:
+This code will remove all whitespace from a file:
 ```rust
 let input = "a   b   c";
 let expected = "abc";
 
-// create the parser and peeker
+// create the parser and get the peeker
 let mut parser = TextParser::new(input.as_bytes());
 let mut peeker = parser.peeker();
 

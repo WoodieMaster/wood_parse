@@ -1,8 +1,4 @@
-use rs_parse_lib::{
-    text_parser::{DeferedTextParserTrait, TextParser},
-    text_parser_utils::TextParserUtils,
-    util::TextParserResult,
-};
+use wood_parse::{TextParser, TextParserUtils};
 
 fn main() {
     let input = "a   b   c";
@@ -20,10 +16,9 @@ fn main() {
         let _ = peeker.consume_while(|ch: char| ch.is_whitespace());
 
         // get the next character
-        let (result, _) = peeker.next();
-        match result {
-            TextParserResult::Ok(ch) => parsed_string.push(ch),
-            TextParserResult::End => break,
+        match peeker.next() {
+            Some(Ok(ch)) => parsed_string.push(ch),
+            None => break,
             _ => {}
         }
     }

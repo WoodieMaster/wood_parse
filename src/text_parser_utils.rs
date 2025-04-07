@@ -1,7 +1,8 @@
 use anyhow::Result;
 
-use crate::{text_parser::DeferedTextParserTrait, util::TextParserResult};
+use crate::text_parser::PeekerTrait;
 
+/// A trait that defines a method for matching against a single character
 pub trait CharMatcher {
     fn match_char(&self, ch: char) -> bool;
 }
@@ -24,16 +25,24 @@ impl<'a> CharMatcher for &'a str {
     }
 }
 
-pub trait TextParserUtils: DeferedTextParserTrait {
+/// The trait defining useful methods for text pasing
+/// The trait is automatically implemented for all types implementing its super trait
+pub trait TextParserUtils: PeekerTrait {
+    /// Checks if the next character matches the given character matcher
     fn check_next(&mut self, ch: impl CharMatcher) -> bool;
+    /// Consumes the next character if it matches the given character matcher
     fn consume_if(&mut self, ch: impl CharMatcher) -> bool;
+    /// Consumes characters while they match the given character matcher.
+    /// returns the consumed text
     fn read_while(&mut self, f: impl CharMatcher) -> Result<String>;
+    /// Consumes characters while they match the given character matcher
+    /// returns the amount of characters consumed
     fn consume_while(&mut self, f: impl CharMatcher) -> Result<usize>;
 }
 
-impl<T: DeferedTextParserTrait> TextParserUtils for T {
+impl<T: PeekerTrait> TextParserUtils for T {
     fn check_next(&mut self, cm: impl CharMatcher) -> bool {
-        matches!(self.peeker().next().0, TextParserResult::Ok(c) if cm.match_char(c))
+        matches!(self.peeker().next(), Some(Ok(c)) if cm.match_char(c))
     }
 
     fn read_while(&mut self, cm: impl CharMatcher) -> Result<String> {
@@ -41,12 +50,11 @@ impl<T: DeferedTextParserTrait> TextParserUtils for T {
         let mut peeker = self.peeker();
 
         loop {
-            let (result, _) = peeker.next();
-            match result {
-                TextParserResult::Ok(ch) if cm.match_char(ch) => text.push(ch),
-                TextParserResult::Err(err) => return Err(err),
+            match peeker.next() {
+                Some(Ok(ch)) if cm.match_char(ch) => text.push(ch),
+                Some(Err(err)) => return Err(err),
                 _ => {
-                    peeker.reverse(1);
+                    peeker.back(1);
                     peeker.apply();
                     return Ok(text);
                 }
@@ -60,12 +68,11 @@ impl<T: DeferedTextParserTrait> TextParserUtils for T {
         let mut peeker = self.peeker();
 
         loop {
-            let (result, _) = peeker.next();
-            match result {
-                TextParserResult::Ok(ch) if cm.match_char(ch) => count += 1,
-                TextParserResult::Err(err) => return Err(err),
+            match peeker.next() {
+                Some(Ok(ch)) if cm.match_char(ch) => count += 1,
+                Some(Err(err)) => return Err(err),
                 _ => {
-                    peeker.reverse(1);
+                    peeker.back(1);
                     peeker.apply();
                     return Ok(count);
                 }
@@ -76,15 +83,12 @@ impl<T: DeferedTextParserTrait> TextParserUtils for T {
     fn consume_if(&mut self, cm: impl CharMatcher) -> bool {
         let mut peeker = self.peeker();
 
-        match peeker.next().0 {
-            TextParserResult::Ok(c) if cm.match_char(c) => {
+        match peeker.next() {
+            Some(Ok(c)) if cm.match_char(c) => {
                 peeker.apply();
                 true
             }
-            _ => {
-                peeker.reverse(1);
-                false
-            }
+            _ => false,
         }
     }
 }

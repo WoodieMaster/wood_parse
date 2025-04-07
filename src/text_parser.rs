@@ -1,23 +1,35 @@
 use std::io::Read;
 
-use crate::{char_parsing::read_char, util::TextParserResult};
+use anyhow::Result;
 
-pub type Pos = usize;
+use crate::char_parsing::read_char;
 
+/// The trait for the text parser
+///
+/// Can be used to create a custom implementation of the TextParser struct
 pub trait TextParserTrait {
     /// Get the current character position of the parser
-    fn current_pos(&self) -> usize;
+    fn position(&self) -> usize;
     /// Get the character at the given offset from the current position
-    fn get(&mut self, offset: usize) -> (TextParserResult, Pos);
+    fn get(&mut self, offset: usize) -> Option<Result<char>>;
     /// Consume the given number of characters
     fn consume(&mut self, count: usize);
     /// Create a peeker that uses the current parser
-    fn peeker(&mut self) -> impl DeferedTextParserTrait;
+    fn peeker(&mut self) -> impl PeekerTrait;
 }
 
-pub trait DeferedTextParserTrait: TextParserTrait {
-    fn next(&mut self) -> (TextParserResult, Pos);
-    fn reverse(&mut self, amount: usize);
+/// The trait for the peeker
+/// Can be used to create a custom implementation of the Peeker struct
+pub trait PeekerTrait: TextParserTrait + Iterator<Item = Result<char>> {
+    /// Lets you go back the given number of characters
+    /// # Panics
+    /// Panics if the amount is greater than the current peek position
+    fn back(&mut self, amount: usize);
+    /// Makes the underlying text parser, which may be another peeker, consume all the characters that this peeker peeked
+    /// # Examples
+    /// ```rust
+    /// PeekerTrait::
+    /// ```
     fn apply(self);
 }
 
@@ -45,34 +57,34 @@ impl<R: Read> TextParser<R> {
     }
 
     /// Returns a `Peeker` used for parsing ahead without affecting the parser
-    pub fn peeker(&mut self) -> Peeker<Self> {
-        Peeker::new(self)
+    pub fn peeker<'a, P>(&'a mut self) -> P
+    where
+        P: PeekerTrait + From<&'a mut Self>,
+    {
+        P::from(self)
     }
 }
 
 impl<R: Read> TextParserTrait for TextParser<R> {
-    fn current_pos(&self) -> usize {
+    fn position(&self) -> usize {
         self.read_pos - 1
     }
 
-    fn get(&mut self, offset: usize) -> (TextParserResult, Pos) {
+    fn get(&mut self, offset: usize) -> Option<Result<char>> {
         while offset >= self.buffer.len() {
             self.buffer.push(match read_char(&mut self.reader) {
-                TextParserResult::Ok(ok) => ok,
-                TextParserResult::Err(err) => {
+                Some(Ok(ok)) => ok,
+                Some(Err(err)) => {
                     self.errored = true;
-                    return (TextParserResult::Err(err), offset + self.read_pos);
+                    return Some(Err(err));
                 }
-                TextParserResult::End => {
+                None => {
                     self.errored = true;
-                    return (TextParserResult::End, offset + self.read_pos);
+                    return None;
                 }
             });
         }
-        (
-            TextParserResult::Ok(self.buffer[offset]),
-            offset + self.read_pos,
-        )
+        Some(Ok(self.buffer[offset]))
     }
 
     fn consume(&mut self, count: usize) {
@@ -95,9 +107,15 @@ impl<R: Read> TextParserTrait for TextParser<R> {
     }
 }
 
-pub struct Peeker<'a, L: TextParserTrait> {
-    parser: &'a mut L,
+pub struct Peeker<'a, T: TextParserTrait> {
+    parser: &'a mut T,
     idx: usize,
+}
+
+impl<'a, T: TextParserTrait + 'a> From<&'a mut T> for Peeker<'a, T> {
+    fn from(parser: &'a mut T) -> Self {
+        Self { parser, idx: 0 }
+    }
 }
 
 impl<'a, L: TextParserTrait> Peeker<'a, L> {
@@ -107,11 +125,11 @@ impl<'a, L: TextParserTrait> Peeker<'a, L> {
 }
 
 impl<'a, L: TextParserTrait> TextParserTrait for Peeker<'a, L> {
-    fn current_pos(&self) -> usize {
-        self.parser.current_pos() + self.idx
+    fn position(&self) -> usize {
+        self.parser.position() + self.idx
     }
 
-    fn get(&mut self, offset: usize) -> (TextParserResult, usize) {
+    fn get(&mut self, offset: usize) -> Option<Result<char>> {
         self.parser.get(self.idx + offset)
     }
 
@@ -125,18 +143,22 @@ impl<'a, L: TextParserTrait> TextParserTrait for Peeker<'a, L> {
     }
 }
 
-impl<'a, L: TextParserTrait> DeferedTextParserTrait for Peeker<'a, L> {
-    fn next(&mut self) -> (TextParserResult, usize) {
-        let (ch, idx) = self.parser.get(self.idx);
-        self.idx += 1;
-        (ch, idx)
-    }
+impl<'a, T: TextParserTrait> Iterator for Peeker<'a, T> {
+    type Item = Result<char>;
 
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = self.parser.get(self.idx);
+        self.idx += 1;
+        result
+    }
+}
+
+impl<'a, T: TextParserTrait> PeekerTrait for Peeker<'a, T> {
     fn apply(self) {
         self.parser.consume(self.idx);
     }
 
-    fn reverse(&mut self, amount: usize) {
+    fn back(&mut self, amount: usize) {
         self.idx -= amount;
     }
 }
@@ -153,48 +175,38 @@ mod test {
     #[test]
     fn get_from_parser() {
         let mut parser = TextParser::new("Balls😊äüÀ".as_bytes());
-
-        assert_eq!(parser.get(0).0.unwrap(), 'B');
-        assert_eq!(parser.get(1).0.unwrap(), 'a');
-        assert_eq!(parser.get(2).0.unwrap(), 'l');
-        assert_eq!(parser.get(3).0.unwrap(), 'l');
-        assert_eq!(parser.get(4).0.unwrap(), 's');
-        assert_eq!(parser.get(5).0.unwrap(), '😊');
-        assert_eq!(parser.get(6).0.unwrap(), 'ä');
-        assert_eq!(parser.get(7).0.unwrap(), 'ü');
-        assert_eq!(parser.get(8).0.unwrap(), 'À');
+        let expected = vec!['B', 'a', 'l', 'l', 's', '😊', 'ä', 'ü', 'À'];
+        for i in 0..=8 {
+            assert_eq!(parser.get(i).unwrap().unwrap(), expected[i]);
+        }
     }
 
     #[test]
     fn read_parser() {
         let read_string = "Balls😊äüÀ";
         let mut parser = TextParser::new(read_string.as_bytes());
-        let mut peeker = parser.peeker();
+        let mut peeker: Peeker<_> = parser.peeker();
 
         let mut expected_chars = read_string.chars();
-
-        let mut expected_pos = 0;
         loop {
-            let (result, pos) = peeker.next();
-
-            assert_eq!(pos, expected_pos, "Expected pos {expected_pos}, got {pos}");
+            let result = peeker.next();
 
             match result {
-                TextParserResult::Ok(ch) => {
+                Some(Ok(ch)) => {
                     let expected_char = expected_chars.next().expect("Expected fewer characters");
 
                     assert_eq!(
-                        ch, expected_char,
-                        "Expected char {ch}, got {expected_char} at {pos}"
+                        ch,
+                        expected_char,
+                        "Expected char {ch}, got {expected_char} at {}",
+                        peeker.position()
                     );
                 }
-                TextParserResult::Err(err) => {
+                Some(Err(err)) => {
                     panic!("Expected no error, got {err}");
                 }
-                TextParserResult::End => break,
+                None => break,
             }
-
-            expected_pos += 1;
         }
 
         assert!(expected_chars.next().is_none(), "Expected more chars");
